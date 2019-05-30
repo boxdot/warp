@@ -44,7 +44,7 @@ use serde_json;
 
 use reject::Reject;
 // This re-export just looks weird in docs...
-pub(crate) use self::sealed::{ReplyHttpError, ReplySealed, Reply_, Response};
+pub(crate) use self::r#impl::{ReplyHttpError, Reply_, Response};
 #[doc(hidden)]
 pub use filters::reply as with;
 
@@ -109,7 +109,7 @@ struct Json {
     inner: Result<Vec<u8>, ()>,
 }
 
-impl ReplySealed for Json {
+impl Reply for Json {
     #[inline]
     fn into_response(self) -> Response {
         match self.inner {
@@ -175,7 +175,7 @@ struct Html<T> {
     body: T,
 }
 
-impl<T> ReplySealed for Html<T>
+impl<T> Reply for Html<T>
 where
     Body: From<T>,
     T: Send,
@@ -201,7 +201,7 @@ where
 /// - `String`
 /// - `&'static str`
 //NOTE: This list is duplicated in the module documentation.
-pub trait Reply: ReplySealed {
+pub trait Reply: Send {
     /*
     TODO: Currently unsure about having trait methods here, as it
     requires returning an exact type, which I'd rather not commit to.
@@ -259,9 +259,10 @@ pub trait Reply: ReplySealed {
         }
     }
     */
-}
 
-impl<T: ReplySealed> Reply for T {}
+    /// Convert reply into a http response.
+    fn into_response(self) -> Response;
+}
 
 fn _assert_object_safe() {
     fn _assert(_: &Reply) {}
@@ -293,7 +294,7 @@ pub struct WithStatus<T> {
     status: StatusCode,
 }
 
-impl<T: Reply> ReplySealed for WithStatus<T> {
+impl<T: Reply> Reply for WithStatus<T> {
     fn into_response(self) -> Response {
         let mut res = self.reply.into_response();
         *res.status_mut() = self.status;
@@ -345,7 +346,7 @@ pub struct WithHeader<T> {
     reply: T,
 }
 
-impl<T: Reply> ReplySealed for WithHeader<T> {
+impl<T: Reply> Reply for WithHeader<T> {
     fn into_response(self) -> Response {
         let mut res = self.reply.into_response();
         if let Some((name, value)) = self.header {
@@ -355,8 +356,7 @@ impl<T: Reply> ReplySealed for WithHeader<T> {
     }
 }
 
-// Seal the `Reply` trait and the `Reply_` wrapper type for now.
-mod sealed {
+mod r#impl {
     use std::borrow::Cow;
 
     use hyper::Body;
@@ -368,33 +368,18 @@ mod sealed {
 
     pub type Response = ::http::Response<Body>;
 
-    // A trait describing the various things that a Warp server can turn into a `Response`.
-    pub trait ReplySealed: Send {
-        fn into_response(self) -> Response;
-    }
-
-    /// ```compile_fail
-    /// use warp::Reply;
-    ///
-    /// let _ = warp::reply().into_response();
-    /// ```
-    pub fn __warp_replysealed_compilefail_doctest() {
-        // Duplicate code to make sure the code is otherwise valid.
-        let _ = ::reply().into_response();
-    }
-
     // An opaque type to return `impl Reply` from trait methods.
     #[allow(missing_debug_implementations)]
     pub struct Reply_(pub(crate) Response);
 
-    impl ReplySealed for Reply_ {
+    impl Reply for Reply_ {
         #[inline]
         fn into_response(self) -> Response {
             self.0
         }
     }
 
-    impl<T: Send> ReplySealed for ::http::Response<T>
+    impl<T: Send> Reply for ::http::Response<T>
     where
         Body: From<T>,
     {
@@ -404,7 +389,7 @@ mod sealed {
         }
     }
 
-    impl ReplySealed for ::http::StatusCode {
+    impl Reply for ::http::StatusCode {
         #[inline]
         fn into_response(self) -> Response {
             let mut res = Response::default();
@@ -413,7 +398,7 @@ mod sealed {
         }
     }
 
-    impl<T> ReplySealed for Result<T, ::http::Error>
+    impl<T> Reply for Result<T, ::http::Error>
     where
         T: Reply + Send,
     {
@@ -444,7 +429,7 @@ mod sealed {
         }
     }
 
-    impl ReplySealed for String {
+    impl Reply for String {
         #[inline]
         fn into_response(self) -> Response {
             ::http::Response::builder()
@@ -457,7 +442,7 @@ mod sealed {
         }
     }
 
-    impl ReplySealed for Vec<u8> {
+    impl Reply for Vec<u8> {
         #[inline]
         fn into_response(self) -> Response {
             ::http::Response::builder()
@@ -470,7 +455,7 @@ mod sealed {
         }
     }
 
-    impl ReplySealed for &'static str {
+    impl Reply for &'static str {
         #[inline]
         fn into_response(self) -> Response {
             ::http::Response::builder()
@@ -483,17 +468,17 @@ mod sealed {
         }
     }
 
-    impl ReplySealed for Cow<'static, str> {
+    impl Reply for Cow<'static, str> {
         #[inline]
         fn into_response(self) -> Response {
             match self {
                 Cow::Borrowed(s) => s.into_response(),
-                Cow::Owned(s) => s.into_response()
+                Cow::Owned(s) => s.into_response(),
             }
         }
     }
 
-    impl ReplySealed for &'static [u8] {
+    impl Reply for &'static [u8] {
         #[inline]
         fn into_response(self) -> Response {
             ::http::Response::builder()
@@ -506,7 +491,7 @@ mod sealed {
         }
     }
 
-    impl<T, U> ReplySealed for Either<T, U>
+    impl<T, U> Reply for Either<T, U>
     where
         T: Reply,
         U: Reply,
@@ -520,7 +505,7 @@ mod sealed {
         }
     }
 
-    impl<T> ReplySealed for One<T>
+    impl<T> Reply for One<T>
     where
         T: Reply,
     {
@@ -530,7 +515,7 @@ mod sealed {
         }
     }
 
-    impl ReplySealed for ::never::Never {
+    impl Reply for ::never::Never {
         #[inline(always)]
         fn into_response(self) -> Response {
             match self {}
