@@ -112,7 +112,7 @@ fn list_todos(db: Db) -> warp::reply::Json<Vec<Todo>> {
 }
 
 /// POST /todos with JSON body
-fn create_todo(create: Todo, db: Db) -> Result<StatusCode, StatusCode> {
+fn create_todo(create: Todo, db: Db) -> Result<Created, BadRequest> {
     debug!("create_todo: {:?}", create);
 
     let mut vec = db.lock().unwrap();
@@ -121,18 +121,18 @@ fn create_todo(create: Todo, db: Db) -> Result<StatusCode, StatusCode> {
         if todo.id == create.id {
             debug!("    -> id already exists: {}", create.id);
             // Todo with id already exists, return `400 BadRequest`.
-            return Err(StatusCode::BAD_REQUEST);
+            return Err(BadRequest);
         }
     }
 
     // No existing Todo with id, so insert and return `201 Created`.
     vec.push(create);
 
-    Ok(StatusCode::CREATED)
+    Ok(Created)
 }
 
 /// PUT /todos/:id with JSON body
-fn update_todo(id: u64, update: Todo, db: Db) -> Result<(), StatusCode> {
+fn update_todo(id: u64, update: Todo, db: Db) -> Result<(), NotFound> {
     debug!("update_todo: id={}, todo={:?}", id, update);
     let mut vec = db.lock().unwrap();
 
@@ -147,11 +147,11 @@ fn update_todo(id: u64, update: Todo, db: Db) -> Result<(), StatusCode> {
     debug!("    -> todo id not found!");
 
     // If the for loop didn't return OK, then the ID doesn't exist...
-    Err(StatusCode::NOT_FOUND)
+    Err(NotFound)
 }
 
 /// DELETE /todos/:id
-fn delete_todo(id: u64, db: Db) -> Result<StatusCode, StatusCode> {
+fn delete_todo(id: u64, db: Db) -> Result<NoContent, NotFound> {
     debug!("delete_todo: id={}", id);
 
     let mut vec = db.lock().unwrap();
@@ -169,10 +169,42 @@ fn delete_todo(id: u64, db: Db) -> Result<StatusCode, StatusCode> {
     if deleted {
         // respond with a `204 No Content`, which means successful,
         // yet no body expected...
-        Ok(StatusCode::NO_CONTENT)
+        Ok(NoContent)
     } else {
         debug!("    -> todo id not found!");
         // Reject this request with a `404 Not Found`...
-        Err(StatusCode::NOT_FOUND)
+        Err(NotFound)
+    }
+}
+
+// unit structs to reprent status code as return value
+
+// unit `()` represents OK status
+struct Created;
+struct BadRequest;
+struct NotFound;
+struct NoContent;
+
+impl warp::Reply for Created {
+    fn into_response(self) -> warp::reply::Response {
+        StatusCode::OK.into_response()
+    }
+}
+
+impl warp::Reply for BadRequest {
+    fn into_response(self) -> warp::reply::Response {
+        StatusCode::BAD_REQUEST.into_response()
+    }
+}
+
+impl warp::Reply for NotFound {
+    fn into_response(self) -> warp::reply::Response {
+        StatusCode::NOT_FOUND.into_response()
+    }
+}
+
+impl warp::Reply for NoContent {
+    fn into_response(self) -> warp::reply::Response {
+        StatusCode::NO_CONTENT.into_response()
     }
 }
