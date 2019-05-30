@@ -97,7 +97,7 @@ pub fn json<T>(val: &T) -> impl Reply
 where
     T: Serialize,
 {
-    Json {
+    Json_ {
         inner: serde_json::to_vec(val).map_err(|err| {
             error!("reply::json error: {}", err);
         }),
@@ -105,11 +105,11 @@ where
 }
 
 #[allow(missing_debug_implementations)]
-struct Json {
+struct Json_ {
     inner: Result<Vec<u8>, ()>,
 }
 
-impl Reply for Json {
+impl Reply for Json_ {
     #[inline]
     fn into_response(self) -> Response {
         match self.inner {
@@ -121,6 +121,34 @@ impl Reply for Json {
             }
             Err(()) => ::reject::known(ReplyJsonError).into_response(),
         }
+    }
+}
+
+/// TODO(boxdot): add docs
+#[allow(missing_debug_implementations)]
+pub struct Json<T>
+where
+    T: Serialize + Send,
+{
+    inner: T,
+}
+
+impl<T> From<T> for Json<T>
+where
+    T: Serialize + Send,
+{
+    fn from(value: T) -> Self {
+        Self { inner: value }
+    }
+}
+
+impl<T> Reply for Json<T>
+where
+    T: Serialize + Send,
+{
+    #[inline]
+    fn into_response(self) -> Response {
+        json(&self.inner).into_response()
     }
 }
 
@@ -410,6 +438,29 @@ mod r#impl {
                     error!("reply error: {:?}", e);
                     ::reject::known(ReplyHttpError(e)).into_response()
                 }
+            }
+        }
+    }
+
+    impl Reply for () {
+        #[inline]
+        fn into_response(self) -> Response {
+            let mut res = Response::default();
+            *res.status_mut() = ::http::StatusCode::OK;
+            res
+        }
+    }
+
+    impl<T, E> Reply for Result<T, E>
+    where
+        T: Reply,
+        E: Reply,
+    {
+        #[inline]
+        fn into_response(self) -> Response {
+            match self {
+                Ok(t) => t.into_response(),
+                Err(e) => e.into_response(),
             }
         }
     }
