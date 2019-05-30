@@ -74,20 +74,20 @@ fn main() {
         .and(todos_index)
         .and(json_body)
         .and(db.clone())
-        .and_then(create_todo);
+        .map(create_todo);
 
     // `PUT /todos/:id`
     let update = warp::put2()
         .and(todos_id)
         .and(json_body)
         .and(db.clone())
-        .and_then(update_todo);
+        .map(update_todo);
 
     // `DELETE /todos/:id`
     let delete = warp::delete2()
         .and(todos_id)
         .and(db.clone())
-        .and_then(delete_todo);
+        .map(delete_todo);
 
     // Combine our endpoints, since we want requests to match any of them:
     let api = list.or(create).or(update).or(delete);
@@ -105,13 +105,14 @@ fn main() {
 // No tuples are needed, it's auto flattened for the functions.
 
 /// GET /todos
-fn list_todos(db: Db) -> impl warp::Reply {
+fn list_todos(db: Db) -> warp::reply::Json<Vec<Todo>> {
     // Just return a JSON array of all Todos.
-    warp::reply::json(&*db.lock().unwrap())
+    let todos = &*db.lock().unwrap();
+    todos.into()
 }
 
 /// POST /todos with JSON body
-fn create_todo(create: Todo, db: Db) -> Result<impl warp::Reply, warp::Rejection> {
+fn create_todo(create: Todo, db: Db) -> Result<StatusCode, StatusCode> {
     debug!("create_todo: {:?}", create);
 
     let mut vec = db.lock().unwrap();
@@ -120,7 +121,7 @@ fn create_todo(create: Todo, db: Db) -> Result<impl warp::Reply, warp::Rejection
         if todo.id == create.id {
             debug!("    -> id already exists: {}", create.id);
             // Todo with id already exists, return `400 BadRequest`.
-            return Ok(StatusCode::BAD_REQUEST);
+            return Err(StatusCode::BAD_REQUEST);
         }
     }
 
@@ -131,7 +132,7 @@ fn create_todo(create: Todo, db: Db) -> Result<impl warp::Reply, warp::Rejection
 }
 
 /// PUT /todos/:id with JSON body
-fn update_todo(id: u64, update: Todo, db: Db) -> Result<impl warp::Reply, warp::Rejection> {
+fn update_todo(id: u64, update: Todo, db: Db) -> Result<(), StatusCode> {
     debug!("update_todo: id={}, todo={:?}", id, update);
     let mut vec = db.lock().unwrap();
 
@@ -139,18 +140,18 @@ fn update_todo(id: u64, update: Todo, db: Db) -> Result<impl warp::Reply, warp::
     for todo in vec.iter_mut() {
         if todo.id == id {
             *todo = update;
-            return Ok(warp::reply());
+            return Ok(());
         }
     }
 
     debug!("    -> todo id not found!");
 
     // If the for loop didn't return OK, then the ID doesn't exist...
-    Err(warp::reject::not_found())
+    Err(StatusCode::NOT_FOUND)
 }
 
 /// DELETE /todos/:id
-fn delete_todo(id: u64, db: Db) -> Result<impl warp::Reply, warp::Rejection> {
+fn delete_todo(id: u64, db: Db) -> Result<StatusCode, StatusCode> {
     debug!("delete_todo: id={}", id);
 
     let mut vec = db.lock().unwrap();
@@ -172,6 +173,6 @@ fn delete_todo(id: u64, db: Db) -> Result<impl warp::Reply, warp::Rejection> {
     } else {
         debug!("    -> todo id not found!");
         // Reject this request with a `404 Not Found`...
-        Err(warp::reject::not_found())
+        Err(StatusCode::NOT_FOUND)
     }
 }

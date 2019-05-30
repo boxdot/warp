@@ -42,9 +42,10 @@ use hyper::Body;
 use serde::Serialize;
 use serde_json;
 
+pub use self::r#impl::Response;
 use reject::Reject;
 // This re-export just looks weird in docs...
-pub(crate) use self::r#impl::{ReplyHttpError, Reply_, Response};
+pub(crate) use self::r#impl::{ReplyHttpError, Reply_};
 #[doc(hidden)]
 pub use filters::reply as with;
 
@@ -97,16 +98,25 @@ pub fn json<T>(val: &T) -> impl Reply
 where
     T: Serialize,
 {
-    Json_ {
-        inner: serde_json::to_vec(val).map_err(|err| {
-            error!("reply::json error: {}", err);
-        }),
-    }
+    Json_::new(val)
 }
 
 #[allow(missing_debug_implementations)]
 struct Json_ {
     inner: Result<Vec<u8>, ()>,
+}
+
+impl Json_ {
+    fn new<T>(val: &T) -> Self
+    where
+        T: Serialize,
+    {
+        Self {
+            inner: serde_json::to_vec(val).map_err(|err| {
+                error!("reply::json error: {}", err);
+            }),
+        }
+    }
 }
 
 impl Reply for Json_ {
@@ -130,15 +140,19 @@ pub struct Json<T>
 where
     T: Serialize + Send,
 {
-    inner: T,
+    data: Json_,
+    _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T> From<T> for Json<T>
+impl<T> From<&T> for Json<T>
 where
     T: Serialize + Send,
 {
-    fn from(value: T) -> Self {
-        Self { inner: value }
+    fn from(val: &T) -> Self {
+        Self {
+            data: Json_::new(val),
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 
@@ -148,7 +162,7 @@ where
 {
     #[inline]
     fn into_response(self) -> Response {
-        json(&self.inner).into_response()
+        self.data.into_response()
     }
 }
 
@@ -394,6 +408,7 @@ mod r#impl {
 
     use super::{HeaderValue, Reply, CONTENT_TYPE};
 
+    /// Response type of conversion `Reply::into_response`.
     pub type Response = ::http::Response<Body>;
 
     // An opaque type to return `impl Reply` from trait methods.
