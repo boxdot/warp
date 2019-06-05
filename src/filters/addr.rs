@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use describe::DescriptionFn;
 use filter::{filter_fn_one, Filter};
 use never::Never;
 
@@ -22,5 +23,5 @@ use never::Never;
 ///     });
 /// ```
 pub fn remote() -> impl Filter<Extract = (Option<SocketAddr>,), Error = Never> + Copy {
-    filter_fn_one(|route| Ok(route.remote_addr()))
+    filter_fn_one(DescriptionFn::Remote, |route| Ok(route.remote_addr()))
 }

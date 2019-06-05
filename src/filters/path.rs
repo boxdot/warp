@@ -131,6 +131,7 @@ use std::str::FromStr;
 
 use http::uri::PathAndQuery;
 
+use describe::{DescriptionFn, DescriptionPath};
 use filter::{filter_fn, one, Filter, One, Tuple};
 use never::Never;
 use reject::{self, Rejection};
@@ -161,7 +162,7 @@ pub fn path(p: &'static str) -> impl Filter<Extract = (), Error = Rejection> + C
         p
     );
 
-    segment(move |seg| {
+    segment(DescriptionPath::Path(p), move |seg| {
         trace!("{:?}?: {:?}", p, seg);
         if seg == p {
             Ok(())
@@ -189,7 +190,7 @@ pub fn index() -> impl Filter<Extract = (), Error = Rejection> + Copy {
 ///     .map(|| "Hello, World!");
 /// ```
 pub fn end() -> impl Filter<Extract = (), Error = Rejection> + Copy {
-    filter_fn(move |route| {
+    filter_fn(DescriptionFn::Path(DescriptionPath::End), move |route| {
         if route.path().is_empty() {
             Ok(())
         } else {
@@ -217,7 +218,7 @@ pub fn end() -> impl Filter<Extract = (), Error = Rejection> + Copy {
 ///     });
 /// ```
 pub fn param<T: FromStr + Send>() -> impl Filter<Extract = One<T>, Error = Rejection> + Copy {
-    segment(|seg| {
+    segment(DescriptionPath::Param, |seg| {
         trace!("param?: {:?}", seg);
         if seg.is_empty() {
             return Err(reject::not_found());
@@ -250,7 +251,7 @@ where
     T: FromStr + Send,
     T::Err: Into<::reject::Cause>,
 {
-    segment(|seg| {
+    segment(DescriptionPath::Param, |seg| {
         trace!("param?: {:?}", seg);
         if seg.is_empty() {
             return Err(reject::not_found());
@@ -280,7 +281,7 @@ where
 ///     });
 /// ```
 pub fn tail() -> impl Filter<Extract = One<Tail>, Error = Never> + Copy {
-    filter_fn(move |route| {
+    filter_fn(DescriptionFn::Path(DescriptionPath::Tail), move |route| {
         let path = path_and_query(&route);
         let idx = route.matched_path_index();
 
@@ -334,7 +335,7 @@ impl fmt::Debug for Tail {
 ///     });
 /// ```
 pub fn peek() -> impl Filter<Extract = One<Peek>, Error = Never> + Copy {
-    filter_fn(move |route| {
+    filter_fn(DescriptionFn::Path(DescriptionPath::Peek), move |route| {
         let path = path_and_query(&route);
         let idx = route.matched_path_index();
 
@@ -401,7 +402,9 @@ impl fmt::Debug for Peek {
 ///     });
 /// ```
 pub fn full() -> impl Filter<Extract = One<FullPath>, Error = Never> + Copy {
-    filter_fn(move |route| Ok(one(FullPath(path_and_query(&route)))))
+    filter_fn(DescriptionFn::Path(DescriptionPath::Full), move |route| {
+        Ok(one(FullPath(path_and_query(&route))))
+    })
 }
 
 /// Represents the full request path, returned by the `full()` filter.
@@ -420,12 +423,15 @@ impl fmt::Debug for FullPath {
     }
 }
 
-fn segment<F, U>(func: F) -> impl Filter<Extract = U, Error = Rejection> + Copy
+fn segment<F, U>(
+    desc: DescriptionPath,
+    func: F,
+) -> impl Filter<Extract = U, Error = Rejection> + Copy
 where
     F: Fn(&str) -> Result<U, Rejection> + Copy,
     U: Tuple + Send,
 {
-    filter_fn(move |route| {
+    filter_fn(DescriptionFn::Path(desc), move |route| {
         let (u, idx) = {
             let seg = route
                 .path()

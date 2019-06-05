@@ -4,12 +4,13 @@
 //! of them, like `exact` and `exact_ignore_case`, are just predicates,
 //! they don't extract any values. The `header` filter allows parsing
 //! a type from any header.
-use std::str::FromStr;
 use std::error::Error as StdError;
+use std::str::FromStr;
 
 use headers::{Header, HeaderMapExt};
 use http::HeaderMap;
 
+use describe::DescriptionFn;
 use filter::{filter_fn, filter_fn_one, Filter, One};
 use never::Never;
 use reject::{self, Rejection};
@@ -36,7 +37,7 @@ use reject::{self, Rejection};
 pub fn header<T: FromStr + Send>(
     name: &'static str,
 ) -> impl Filter<Extract = One<T>, Error = Rejection> + Copy {
-    filter_fn_one(move |route| {
+    filter_fn_one(DescriptionFn::Header { name }, move |route| {
         trace!("header({:?})", name);
         route
             .headers()
@@ -53,7 +54,7 @@ pub fn header<T: FromStr + Send>(
 
 pub(crate) fn header2<T: Header + Send>() -> impl Filter<Extract = One<T>, Error = Rejection> + Copy
 {
-    filter_fn_one(move |route| {
+    filter_fn_one(DescriptionFn::Header2, move |route| {
         trace!("header2({:?})", T::name());
         route
             .headers()
@@ -80,7 +81,7 @@ pub fn optional<T>(
 where
     T: FromStr + Send,
 {
-    filter_fn_one(move |route| {
+    filter_fn_one(DescriptionFn::HeaderOptional { name }, move |route| {
         trace!("optional({:?})", name);
         let result = route.headers().get(name).map(|value| {
             value
@@ -102,7 +103,9 @@ pub(crate) fn optional2<T>() -> impl Filter<Extract = One<Option<T>>, Error = Ne
 where
     T: Header + Send,
 {
-    filter_fn_one(move |route| Ok(route.headers().typed_get()))
+    filter_fn_one(DescriptionFn::HeaderOptional2, move |route| {
+        Ok(route.headers().typed_get())
+    })
 }
 
 /* TODO
@@ -139,7 +142,7 @@ pub fn exact(
     name: &'static str,
     value: &'static str,
 ) -> impl Filter<Extract = (), Error = Rejection> + Copy {
-    filter_fn(move |route| {
+    filter_fn(DescriptionFn::HeaderExact { name, value }, move |route| {
         trace!("exact?({:?}, {:?})", name, value);
         route
             .headers()
@@ -170,20 +173,23 @@ pub fn exact_ignore_case(
     name: &'static str,
     value: &'static str,
 ) -> impl Filter<Extract = (), Error = Rejection> + Copy {
-    filter_fn(move |route| {
-        trace!("exact_ignore_case({:?}, {:?})", name, value);
-        route
-            .headers()
-            .get(name)
-            .ok_or_else(|| reject::known(MissingHeader(name)))
-            .and_then(|val| {
-                if val.as_bytes().eq_ignore_ascii_case(value.as_bytes()) {
-                    Ok(())
-                } else {
-                    Err(reject::known(InvalidHeader(name)))
-                }
-            })
-    })
+    filter_fn(
+        DescriptionFn::HeaderExactIgnoreCase { name, value },
+        move |route| {
+            trace!("exact_ignore_case({:?}, {:?})", name, value);
+            route
+                .headers()
+                .get(name)
+                .ok_or_else(|| reject::known(MissingHeader(name)))
+                .and_then(|val| {
+                    if val.as_bytes().eq_ignore_ascii_case(value.as_bytes()) {
+                        Ok(())
+                    } else {
+                        Err(reject::known(InvalidHeader(name)))
+                    }
+                })
+        },
+    )
 }
 
 /// Create a `Filter` that returns a clone of the request's `HeaderMap`.
@@ -199,7 +205,9 @@ pub fn exact_ignore_case(
 ///     });
 /// ```
 pub fn headers_cloned() -> impl Filter<Extract = One<HeaderMap>, Error = Never> + Copy {
-    filter_fn_one(|route| Ok(route.headers().clone()))
+    filter_fn_one(DescriptionFn::HeadersCloned, |route| {
+        Ok(route.headers().clone())
+    })
 }
 
 // ===== Rejections =====

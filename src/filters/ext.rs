@@ -2,6 +2,7 @@
 
 use std::error::Error as StdError;
 
+use describe::DescriptionFn;
 use filter::{filter_fn_one, Filter};
 use reject::{self, Rejection};
 
@@ -10,7 +11,7 @@ use reject::{self, Rejection};
 /// If the extension doesn't exist, this rejects with a `MissingExtension`.
 pub fn get<T: Clone + Send + Sync + 'static>(
 ) -> impl Filter<Extract = (T,), Error = Rejection> + Copy {
-    filter_fn_one(|route| {
+    filter_fn_one(DescriptionFn::Extension, |route| {
         route
             .extensions()
             .get::<T>()

@@ -13,7 +13,7 @@ mod wrap;
 
 use futures::{future, Future, IntoFuture};
 
-use describe::Description;
+use describe::{Description, DescriptionFn};
 pub(crate) use generic::{one, Combine, Either, Func, HList, One, Tuple};
 use reject::{CombineRejection, Reject, Rejection};
 use route::{self, Route};
@@ -417,17 +417,18 @@ fn _assert_object_safe() {
 
 // ===== FilterFn =====
 
-pub(crate) fn filter_fn<F, U>(func: F) -> FilterFn<F>
+pub(crate) fn filter_fn<F, U>(desc: DescriptionFn, func: F) -> FilterFn<F>
 where
     F: Fn(&mut Route) -> U,
     U: IntoFuture,
     U::Item: Tuple,
     U::Error: Reject,
 {
-    FilterFn { func }
+    FilterFn { func, desc }
 }
 
 pub(crate) fn filter_fn_one<F, U>(
+    desc: DescriptionFn,
     func: F,
 ) -> FilterFn<impl Fn(&mut Route) -> future::Map<U::Future, fn(U::Item) -> (U::Item,)> + Copy>
 where
@@ -435,7 +436,9 @@ where
     U: IntoFuture,
     U::Error: Reject,
 {
-    filter_fn(move |route| func(route).into_future().map(tup_one as _))
+    filter_fn(desc, move |route| {
+        func(route).into_future().map(tup_one as _)
+    })
 }
 
 fn tup_one<T>(item: T) -> (T,) {
@@ -447,6 +450,7 @@ fn tup_one<T>(item: T) -> (T,) {
 pub(crate) struct FilterFn<F> {
     // TODO: could include a `debug_str: &'static str` to be used in Debug impl
     func: F,
+    desc: DescriptionFn,
 }
 
 impl<F, U> FilterBase for FilterFn<F>
@@ -467,7 +471,6 @@ where
     }
 
     fn describe(&self) -> Description {
-        // TODO: Extract information from Fn
-        Description::Fn
+        Description::Fn(self.desc)
     }
 }

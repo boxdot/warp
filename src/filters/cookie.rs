@@ -5,6 +5,7 @@ use std::error::Error as StdError;
 use headers::Cookie;
 
 use super::header;
+use describe::DescriptionFn;
 use filter::{filter_fn_one, Filter, One};
 use never::Never;
 use reject::Rejection;
@@ -43,7 +44,7 @@ where
     U: Send,
 {
     use headers::HeaderMapExt;
-    filter_fn_one(move |route| {
+    filter_fn_one(DescriptionFn::CokieOptional { name }, move |route| {
         Ok(route
             .headers()
             .typed_get()

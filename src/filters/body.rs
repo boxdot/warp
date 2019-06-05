@@ -16,6 +16,7 @@ use serde::de::DeserializeOwned;
 use serde_json;
 use serde_urlencoded;
 
+use describe::DescriptionFn;
 use filter::{filter_fn, filter_fn_one, Filter, FilterBase};
 use reject::{self, Rejection};
 
@@ -23,7 +24,7 @@ use reject::{self, Rejection};
 //
 // Does not consume any of it.
 pub(crate) fn body() -> impl Filter<Extract = (Body,), Error = Rejection> + Copy {
-    filter_fn_one(|route| {
+    filter_fn_one(DescriptionFn::Body, |route| {
         route.take_body().ok_or_else(|| {
             error!("request body already taken in previous filter");
             reject::known(BodyConsumedMultipleTimes(()))
@@ -114,33 +115,36 @@ fn is_content_type(
     type_: mime::Name<'static>,
     subtype: mime::Name<'static>,
 ) -> impl Filter<Extract = (), Error = Rejection> + Copy {
-    filter_fn(move |route| {
-        if let Some(value) = route.headers().get(CONTENT_TYPE) {
-            trace!("is_content_type {}/{}? {:?}", type_, subtype, value);
-            let ct = value
-                .to_str()
-                .ok()
-                .and_then(|s| s.parse::<mime::Mime>().ok());
-            if let Some(ct) = ct {
-                if ct.type_() == type_ && ct.subtype() == subtype {
-                    Ok(())
+    filter_fn(
+        DescriptionFn::ContentType { type_, subtype },
+        move |route| {
+            if let Some(value) = route.headers().get(CONTENT_TYPE) {
+                trace!("is_content_type {}/{}? {:?}", type_, subtype, value);
+                let ct = value
+                    .to_str()
+                    .ok()
+                    .and_then(|s| s.parse::<mime::Mime>().ok());
+                if let Some(ct) = ct {
+                    if ct.type_() == type_ && ct.subtype() == subtype {
+                        Ok(())
+                    } else {
+                        debug!(
+                            "content-type {:?} doesn't match {}/{}",
+                            value, type_, subtype
+                        );
+                        Err(reject::unsupported_media_type())
+                    }
                 } else {
-                    debug!(
-                        "content-type {:?} doesn't match {}/{}",
-                        value, type_, subtype
-                    );
+                    debug!("content-type {:?} couldn't be parsed", value);
                     Err(reject::unsupported_media_type())
                 }
             } else {
-                debug!("content-type {:?} couldn't be parsed", value);
-                Err(reject::unsupported_media_type())
+                // Optimistically assume its correct!
+                trace!("no content-type header, assuming {}/{}", type_, subtype);
+                Ok(())
             }
-        } else {
-            // Optimistically assume its correct!
-            trace!("no content-type header, assuming {}/{}", type_, subtype);
-            Ok(())
-        }
-    })
+        },
+    )
 }
 
 /// Returns a `Filter` that matches any request and extracts a `Future` of a

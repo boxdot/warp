@@ -8,6 +8,7 @@
 //! a request, and just extracts the method to be used in your filter chains.
 use http::Method;
 
+use describe::DescriptionFn;
 use filter::{filter_fn, filter_fn_one, And, Filter, One};
 use never::Never;
 use reject::{CombineRejection, Rejection};
@@ -75,7 +76,9 @@ where
 ///     });
 /// ```
 pub fn method() -> impl Filter<Extract = One<Method>, Error = Never> + Copy {
-    filter_fn_one(|route| Ok::<_, Never>(route.method().clone()))
+    filter_fn_one(DescriptionFn::Method, |route| {
+        Ok::<_, Never>(route.method().clone())
+    })
 }
 
 // NOTE: This takes a static function instead of `&'static Method` directly
@@ -85,8 +88,8 @@ fn method_is<F>(func: F) -> impl Filter<Extract = (), Error = Rejection> + Copy
 where
     F: Fn() -> &'static Method + Copy,
 {
-    filter_fn(move |route| {
-        let method = func();
+    let method = func();
+    filter_fn(DescriptionFn::MethodIs(method), move |route| {
         trace!("method::{:?}?: {:?}", method, route.method());
         if route.method() == method {
             Ok(())

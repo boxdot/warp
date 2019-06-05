@@ -5,6 +5,7 @@ use std::error::Error as StdError;
 use serde::de::DeserializeOwned;
 use serde_urlencoded;
 
+use describe::DescriptionFn;
 use filter::{filter_fn_one, Filter, One};
 use reject::{self, Rejection};
 
@@ -13,7 +14,7 @@ use reject::{self, Rejection};
 /// If cannot decode into a `T`, the request is rejected with a `400 Bad Request`.
 pub fn query<T: DeserializeOwned + Send>() -> impl Filter<Extract = One<T>, Error = Rejection> + Copy
 {
-    filter_fn_one(|route| {
+    filter_fn_one(DescriptionFn::Query, |route| {
         let query_string = route.query().unwrap_or_else(|| {
             debug!("route was called without a query string, defaulting to empty");
             ""
@@ -28,7 +29,7 @@ pub fn query<T: DeserializeOwned + Send>() -> impl Filter<Extract = One<T>, Erro
 
 /// Creates a `Filter` that returns the raw query string as type String.
 pub fn raw() -> impl Filter<Extract = One<String>, Error = Rejection> + Copy {
-    filter_fn_one(|route| {
+    filter_fn_one(DescriptionFn::QueryRaw, |route| {
         route
             .query()
             .map(|q| q.to_owned())
