@@ -13,6 +13,7 @@ mod wrap;
 
 use futures::{future, Future, IntoFuture};
 
+use describe::Description;
 pub(crate) use generic::{one, Combine, Either, Func, HList, One, Tuple};
 use reject::{CombineRejection, Reject, Rejection};
 use route::{self, Route};
@@ -37,6 +38,8 @@ pub trait FilterBase {
     type Future: Future<Item = Self::Extract, Error = Self::Error> + Send;
 
     fn filter(&self) -> Self::Future;
+
+    fn describe(&self) -> Description;
 
     // crate-private for now
 
@@ -461,5 +464,10 @@ where
     #[inline]
     fn filter(&self) -> Self::Future {
         route::with(|route| (self.func)(route).into_future())
+    }
+
+    fn describe(&self) -> Description {
+        // TODO: Extract information from Fn
+        Description::Fn
     }
 }

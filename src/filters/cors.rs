@@ -410,6 +410,7 @@ mod internal {
     use http::header;
 
     use super::{Configured, CorsForbidden, Validated};
+    use describe::Description;
     use filter::{Filter, FilterBase, One};
     use generic::Either;
     use reject::{CombineRejection, Rejection};
@@ -460,6 +461,10 @@ mod internal {
                     future::Either::A(future::err(rejection.into()))
                 }
             }
+        }
+
+        fn describe(&self) -> Description {
+            Description::Cors(Box::new(self.inner.describe()))
         }
     }
 

@@ -1,6 +1,7 @@
 use futures::{Async, Future, Poll};
 
 use super::{Either, Filter, FilterBase, Tuple};
+use describe::Description;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Unify<F> {
@@ -15,11 +16,16 @@ where
     type Extract = T;
     type Error = F::Error;
     type Future = UnifyFuture<F::Future>;
+
     #[inline]
     fn filter(&self) -> Self::Future {
         UnifyFuture {
             inner: self.filter.filter(),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::Unify(Box::new(self.filter.describe()))
     }
 }
 

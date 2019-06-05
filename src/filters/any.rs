@@ -2,6 +2,7 @@
 
 use futures::{Future, Poll};
 
+use describe::Description;
 use filter::{Filter, FilterBase};
 use never::Never;
 
@@ -59,6 +60,10 @@ impl FilterBase for Any {
     #[inline]
     fn filter(&self) -> Self::Future {
         AnyFut
+    }
+
+    fn describe(&self) -> Description {
+        Description::Any
     }
 }
 

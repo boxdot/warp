@@ -4,6 +4,7 @@ use std::sync::Arc;
 use futures::Future;
 
 use super::{Filter, FilterBase, Tuple};
+use describe::Description;
 use reject::Rejection;
 
 /// A type representing a boxed `Filter` trait object.
@@ -77,6 +78,10 @@ impl<T: Tuple + Send> FilterBase for BoxedFilter<T> {
     fn filter(&self) -> Self::Future {
         self.filter.filter()
     }
+
+    fn describe(&self) -> Description {
+        self.filter.describe()
+    }
 }
 
 struct BoxingFilter<F> {
@@ -94,5 +99,9 @@ where
 
     fn filter(&self) -> Self::Future {
         Box::new(self.filter.filter())
+    }
+
+    fn describe(&self) -> Description {
+        self.filter.describe()
     }
 }

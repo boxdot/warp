@@ -107,6 +107,7 @@ extern crate tokio_threadpool;
 extern crate tungstenite;
 extern crate urlencoding;
 
+mod describe;
 mod error;
 mod filter;
 pub mod filters;

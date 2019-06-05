@@ -3,6 +3,7 @@ use std::mem;
 use futures::{Async, Future, IntoFuture, Poll};
 
 use super::{Filter, FilterBase, Func};
+use describe::Description;
 use reject::CombineRejection;
 
 #[derive(Clone, Copy, Debug)]
@@ -22,11 +23,16 @@ where
     type Extract = (<F::Output as IntoFuture>::Item,);
     type Error = <<F::Output as IntoFuture>::Error as CombineRejection<T::Error>>::Rejection;
     type Future = AndThenFuture<T, F>;
+
     #[inline]
     fn filter(&self) -> Self::Future {
         AndThenFuture {
             state: State::First(self.filter.filter(), self.callback.clone()),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::AndThen(Box::new(self.filter.describe()))
     }
 }
 

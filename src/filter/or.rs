@@ -3,6 +3,7 @@ use std::mem;
 use futures::{Async, Future, Poll};
 
 use super::{Filter, FilterBase};
+use describe::Description;
 use generic::Either;
 use reject::CombineRejection;
 use route;
@@ -29,6 +30,13 @@ where
             state: State::First(self.first.filter(), self.second.clone()),
             original_path_index: PathIndex(idx),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::Or(
+            Box::new(self.first.describe()),
+            Box::new(self.second.describe()),
+        )
     }
 }
 

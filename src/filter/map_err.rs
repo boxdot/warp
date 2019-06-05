@@ -1,6 +1,7 @@
 use futures::{Future, Poll};
 
 use super::{Filter, FilterBase};
+use describe::Description;
 use reject::Reject;
 
 #[derive(Clone, Copy, Debug)]
@@ -18,12 +19,17 @@ where
     type Extract = T::Extract;
     type Error = E;
     type Future = MapErrFuture<T, F>;
+
     #[inline]
     fn filter(&self) -> Self::Future {
         MapErrFuture {
             extract: self.filter.filter(),
             callback: self.callback.clone(),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::MapErr(Box::new(self.filter.describe()))
     }
 }
 

@@ -1,6 +1,7 @@
 use futures::{Async, Future, Poll};
 
 use super::{Filter, FilterBase, Func};
+use describe::Description;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Map<T, F> {
@@ -16,12 +17,18 @@ where
     type Extract = (F::Output,);
     type Error = T::Error;
     type Future = MapFuture<T, F>;
+
     #[inline]
     fn filter(&self) -> Self::Future {
         MapFuture {
             extract: self.filter.filter(),
             callback: self.callback.clone(),
         }
+    }
+
+    fn describe(&self) -> Description {
+        // TODO: extract information from function
+        Description::Map(Box::new(self.filter.describe()))
     }
 }
 

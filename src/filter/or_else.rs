@@ -3,6 +3,7 @@ use std::mem;
 use futures::{Async, Future, IntoFuture, Poll};
 
 use super::{Filter, FilterBase, Func};
+use describe::Description;
 use route;
 
 #[derive(Clone, Copy, Debug)]
@@ -21,6 +22,7 @@ where
     type Extract = <F::Output as IntoFuture>::Item;
     type Error = <F::Output as IntoFuture>::Error;
     type Future = OrElseFuture<T, F>;
+
     #[inline]
     fn filter(&self) -> Self::Future {
         let idx = route::with(|route| route.matched_path_index());
@@ -28,6 +30,10 @@ where
             state: State::First(self.filter.filter(), self.callback.clone()),
             original_path_index: PathIndex(idx),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::OrElse(Box::new(self.filter.describe()))
     }
 }
 

@@ -183,6 +183,7 @@ mod internal {
     use futures::{Async, Future, Poll};
 
     use super::{Info, Log};
+    use describe::Description;
     use filter::{Filter, FilterBase};
     use reject::Reject;
     use reply::{Reply, Response};
@@ -223,6 +224,10 @@ mod internal {
                 future: self.filter.filter(),
                 started,
             }
+        }
+
+        fn describe(&self) -> Description {
+            Description::Log(Box::new(self.filter.describe()))
         }
     }
 

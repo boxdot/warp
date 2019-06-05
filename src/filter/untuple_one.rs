@@ -1,6 +1,7 @@
 use futures::{Async, Future, Poll};
 
 use super::{Filter, FilterBase, Tuple};
+use describe::Description;
 
 #[derive(Clone, Copy, Debug)]
 pub struct UntupleOne<F> {
@@ -15,11 +16,16 @@ where
     type Extract = T;
     type Error = F::Error;
     type Future = UntupleOneFuture<F>;
+
     #[inline]
     fn filter(&self) -> Self::Future {
         UntupleOneFuture {
             extract: self.filter.filter(),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::UntupleOne(Box::new(self.filter.describe()))
     }
 }
 

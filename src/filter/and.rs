@@ -3,6 +3,7 @@ use std::mem;
 use futures::{Async, Future, Poll};
 
 use super::{Combine, Filter, FilterBase, HList, Tuple};
+use describe::Description;
 use reject::CombineRejection;
 
 #[derive(Clone, Copy, Debug)]
@@ -28,6 +29,10 @@ where
         AndFuture {
             state: State::First(self.first.filter(), self.second.clone()),
         }
+    }
+
+    fn describe(&self) -> Description {
+        Description::And(Box::new(self.first.describe()), Box::new(self.second.describe()))
     }
 }
 
